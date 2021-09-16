@@ -1,0 +1,50 @@
+name: Build App
+
+on:
+  push:
+    branches: [master]
+
+  workflow_dispatch:
+    inputs:
+      comment:
+        description: Comment on triggering this workflow
+        required: false
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1 
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Image with Server-Side Rendering & Push to Packages
+        uses: docker/build-push-action@v2.7.0
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ghcr.io/admiralbulldogtv/yapper:${{ github.sha }}
+            ghcr.io/admiralbulldogtv/yapper:latest
+
+  deploy:
+    name: Deploy (Production)
+    runs-on: self-hosted
+    needs: 
+      - build
+
+    steps:
+      - name: Deploy Production Server
+        uses: fifsky/ssh-action@master
+        with:
+          command: docker pull ghcr.io/seventv/autodeploy:latest && docker run --net=host -v /opt/autodeploy/config.yaml:/app/config.yaml -v /opt/autodeploy/private.key:/app/private.key ghcr.io/seventv/autodeploy:latest --service yapper --tag ${{ github.sha }}
+          host: ${{ secrets.DEPLOY_HOST }}
+          user: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
