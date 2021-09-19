@@ -15,8 +15,8 @@ from fast_hifi import DEFAULT_PACE, DEFAULT_PITCH_SHIFT, FastHifiTTS
 
 
 def worker(wid: str, redis_uri: str, set_key: str):
-    model = TaHifiTTS()
-    model_fast = FastHifiTTS()
+    models: Dict[str, TaHifiTTS] = {}
+    models_fast: Dict[str, FastHifiTTS] = {}
 
     r = redis.from_url(url=redis_uri)
 
@@ -36,11 +36,14 @@ def worker(wid: str, redis_uri: str, set_key: str):
             start = time.time()
             mode = event_data.get("mode")
 
+            speaker = payload.get("speaker")
+
             try:
                 if event == TTSActions.CHANGE_GENERATE:
                     if mode == TTSMode.PRECISE:
-                        if model.speaker != payload.get("speaker"):
-                            model.update_model(
+                        if speaker not in models:
+                            models[speaker] = TaHifiTTS()
+                            models[speaker].update_model(
                                 taco_path=payload.get("taco_path"),
                                 onnx_path=payload.get("onnx_path"),
                                 speaker=payload.get("speaker"),
@@ -51,11 +54,12 @@ def worker(wid: str, redis_uri: str, set_key: str):
                                     "gate_threshold", DEFAULT_GATE_THRESHOLD
                                 ),
                             )
-                            logger.info(f"speaker changed to {model.get_speaker()}")
-                        _md = model
+                            logger.info(f"speaker changed to {models[speaker].get_speaker()}")
+                        _md = models[speaker]
                     elif mode == TTSMode.FAST:
-                        if model_fast.speaker != payload.get("speaker"):
-                            model_fast.update_model(
+                        if speaker not in models_fast:
+                            models_fast[speaker] = FastHifiTTS()
+                            models_fast[speaker].update_model(
                                 fast_path=payload.get("fast_path"),
                                 onnx_path=payload.get("onnx_path"),
                                 cmudict_path=payload.get("cmudict_path"),
@@ -71,9 +75,9 @@ def worker(wid: str, redis_uri: str, set_key: str):
                                 start=payload.get("start", 0),
                             )
                             logger.info(
-                                f"[FAST] speaker changed to {model_fast.get_speaker()}"
+                                f"[FAST] speaker changed to {models_fast[speaker].get_speaker()}"
                             )
-                        _md = model_fast
+                        _md = models_fast[speaker]
                     else:
                         raise Exception(f"unknown mode: {mode}")
                     with buffer() as out:
