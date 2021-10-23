@@ -73,6 +73,7 @@ def worker(wid: str, redis_uri: str, set_key: str):
                                 p_arpabet=payload.get("p_arpabet", 1),
                                 period=payload.get("period", False),
                                 start=payload.get("start", 0),
+                                volume=payload.get("volume", 1),
                             )
                             logger.info(
                                 f"[FAST] speaker changed to {models_fast[speaker].get_speaker()}"
