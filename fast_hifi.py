@@ -38,6 +38,7 @@ class FastHifiTTS:
         p_arpabet: float = 1,
         period: bool = False,
         start: int = 0,
+        volume: int = 1,
     ):
         self.ready = False
 
@@ -51,6 +52,7 @@ class FastHifiTTS:
         self.period = period
         self.pace = pace
         self.pitch_shift = pitch_shift
+        self.volume = volume
 
         # TODO: allow for different types of pace and pitch transformations at inference time
         self.default_pitch_function = create_shift_pitch(self.pitch_shift)
@@ -100,7 +102,7 @@ class FastHifiTTS:
             mel_output, *_ = self.fast.infer(sequence, **self.gen_kw)
 
             gen_output = self.onnx.run(None, {"input": to_numpy(mel_output)})
-            audio = np.squeeze(gen_output[0], 0)[0]
+            audio = np.squeeze(gen_output[0], 0)[0] * self.volume
             write(out, SAMPLING_RATE, audio)
         return audio.shape[0] / SAMPLING_RATE
 
