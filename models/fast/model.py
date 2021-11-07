@@ -357,13 +357,13 @@ class Fast(nn.Module):
         return mel_out, dec_lens, dur_pred, pitch_pred, energy_pred
 
 
-def load_model(model_path, cmudict_path="default_cmudict", p_arpabet=1, gpu=False):
+def load_model(model_path, cmudict_path="default_cmudict", p_arpabet=1, gpu=False, energy_conditioning=False):
     if gpu:
         device = torch.device("cuda")
-        model = Fast().cuda()
+        model = Fast(energy_conditioning=energy_conditioning).cuda()
     else:
         device = torch.device("cpu")
-        model = Fast()
+        model = Fast(energy_conditioning=energy_conditioning)
 
     state_dict = torch.load(model_path, map_location=device)
 
