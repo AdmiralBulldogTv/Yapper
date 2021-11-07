@@ -74,6 +74,7 @@ def worker(wid: str, redis_uri: str, set_key: str):
                                 period=payload.get("period", False),
                                 start=payload.get("start", 0),
                                 volume=payload.get("volume", 1),
+                                energy_conditioning=payload.get("energy", False),
                             )
                             logger.info(
                                 f"[FAST] speaker changed to {models_fast[speaker].get_speaker()}"

@@ -39,11 +39,12 @@ class FastHifiTTS:
         period: bool = False,
         start: int = 0,
         volume: int = 1,
+        energy_conditioning: bool = False
     ):
         self.ready = False
 
         self.fast = load_fast_model(
-            fast_path, gpu=gpu, p_arpabet=p_arpabet, cmudict_path=cmudict_path
+            fast_path, gpu=gpu, p_arpabet=p_arpabet, cmudict_path=cmudict_path, energy_conditioning=energy_conditioning
         )
         self.onnx = onnxruntime.InferenceSession(onnx_path)
         self.gpu = gpu
