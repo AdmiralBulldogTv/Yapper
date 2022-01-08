@@ -1,50 +1,64 @@
-name: Build App
+name: Build & Deploy (Production)
 
 on:
   push:
     branches: [master]
 
   workflow_dispatch:
-    inputs:
-      comment:
-        description: Comment on triggering this workflow
-        required: false
 
 jobs:
   build:
-    runs-on: self-hosted
+    name: Build (Production)
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v2
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1 
+      - name: Log into Harbor Registry
+        uses: docker/login-action@v1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: harbor.komodohype.dev
+          username: robot$deploy
+          password: ${{ secrets.REGISTRY_TOKEN }}
 
-      - name: Build Image with Server-Side Rendering & Push to Packages
-        uses: docker/build-push-action@v2.7.0
+      - uses: docker/setup-buildx-action@v1
+        id: buildx
         with:
-          context: .
-          file: Dockerfile
+          install: true
+
+      - name: Build Image
+        id: build_step
+        uses: docker/build-push-action@v2
+        with:
           push: true
           tags: |
-            ghcr.io/admiralbulldogtv/yapper:${{ github.sha }}
-            ghcr.io/admiralbulldogtv/yapper:latest
-
+            harbor.komodohype.dev/troy/yapper-tts:${{ github.sha }}
+            harbor.komodohype.dev/troy/yapper-tts:latest
   deploy:
     name: Deploy (Production)
-    runs-on: self-hosted
-    needs: 
+    runs-on: ubuntu-latest
+    needs: # Run this after build
       - build
 
     steps:
-      - name: Deploy Production Server
-        uses: fifsky/ssh-action@master
-        with:
-          command: docker pull ghcr.io/seventv/autodeploy:latest && docker run --net=host -v /opt/autodeploy/config.yaml:/app/config.yaml -v /opt/autodeploy/private.key:/app/private.key ghcr.io/seventv/autodeploy:latest --service yapper --tag ${{ github.sha }}
-          host: ${{ secrets.DEPLOY_HOST }}
-          user: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+        # Checkout repository
+        - uses: actions/checkout@v2
+
+        # Deploy to k8s
+        - name: Install kubectl&
+          uses: azure/setup-kubectl@v1
+
+        - name: Apply Deployment & Rollout
+          env:
+            KUBE_CONFIG_DATA: ${{ secrets.YAPPER_K8S_AUTODEPLOY }}
+            KUBE_RESOURCE: deploy
+            KUBE_IMAGE_PATCH: >-
+              [
+                { "op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "harbor.komodohype.dev/troy/yapper-tts:${{ github.sha }}" }
+              ]
+          run: |
+            mkdir -p ~/.kube
+            (echo $KUBE_CONFIG_DATA | base64 -d) >> ~/.kube/config
+            kubectl config use-context autodeploy@yapper
+            kubectl patch $KUBE_RESOURCE -n yapper tts --type="json" -p="$KUBE_IMAGE_PATCH"
+            kubectl rollout restart -n yapper $KUBE_RESOURCE/tts
