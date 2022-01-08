@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build (Production)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v2
@@ -36,7 +36,7 @@ jobs:
             harbor.komodohype.dev/troy/yapper-tts:latest
   deploy:
     name: Deploy (Production)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: # Run this after build
       - build
 
