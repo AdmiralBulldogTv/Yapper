@@ -142,12 +142,28 @@ if __name__ == "__main__":
         logger.info("Starting")
 
         wid = os.getenv("YAPPER_WORKER_ID")
-        redis_uri = os.getenv("YAPPER_REDIS_URI")
+        redis_username = os.getenv("YAPPER_REDIS_USERNAME")
+        redis_password = os.getenv("YAPPER_REDIS_PASSWORD")
+        redis_master_name = os.getenv("YAPPER_MASTER_NAME")
+        addresses = os.getenv("YAPPER_REDIS_ADDRESSES").split(",")
+        database = int(os.getenv("YAPPER_REDIS_DATABASE", "0"))
+        sentinel = bool(os.getenv("YAPPER_REDIS_SENTINEL"))
         set_key = os.getenv("YAPPER_SET_KEY")
+
+
+        fixed_addresses: List[Tuple[str, int]] = []
+        for address in addresses:
+            parts = address.split(":")
+            fixed_addresses.append((parts[0], int(parts[1])))
 
         worker(
             wid=wid,
-            redis_uri=redis_uri,
+            redis_username=redis_username,
+            redis_password=redis_password,
+            redis_master_name=redis_master_name,
+            addrsses=fixed_addresses,
+            database=database,
+            sentinel=sentinel,
             set_key=set_key,
         )
 
