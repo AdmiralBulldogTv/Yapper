@@ -6,4 +6,4 @@ numba==0.48.0
 Unidecode==1.0.22
 inflect==0.2.5
 tensorflow==1.15.2
-redis==3.5.3
+redis==4.1.0

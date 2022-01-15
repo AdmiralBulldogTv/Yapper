@@ -1,25 +1,26 @@
-import re
 import os
 import time
-import redis
+from redis import Sentinel, Redis
 import json
 import base64
 
 from tts_enum import TTSActions, TTSMode
 from logger import logger
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from buffer import buffer
 from hifi import TaHifiTTS, DEFAULT_GATE_THRESHOLD
 from fast_hifi import DEFAULT_PACE, DEFAULT_PITCH_SHIFT, FastHifiTTS
 
 
-def worker(wid: str, redis_uri: str, set_key: str):
+def worker(wid: str, redis_username: str, redis_password: str, redis_master_name: str, addrsses: List[Tuple[str, int]], database: int, sentinel: bool, set_key: str):
     models: Dict[str, TaHifiTTS] = {}
     models_fast: Dict[str, FastHifiTTS] = {}
 
-    r = redis.from_url(url=redis_uri)
-
+    if sentinel:
+        r: Redis = Sentinel(addrsses, socket_timeout=0.1, sentinel_kwargs={'password': redis_password, 'username': redis_username}).master_for(redis_master_name, password=redis_password, username=redis_username, db=database)
+    else:
+        r: Redis = Redis(host=addrsses[0][0], port=addrsses[0][1], db=database, username=redis_username, password=redis_password)
     while True:
         try:
             data = r.spop(set_key)
