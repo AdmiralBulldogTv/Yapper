@@ -373,7 +373,7 @@ def load_model(model_path, cmudict_path="default_cmudict", p_arpabet=1, gpu=Fals
             sd = {k.replace("module.", ""): v for k, v in sd.items()}
         model.load_state_dict(sd, strict=False)
     else:
-        model = state_dict["model"]
+        model.load_state_dict(state_dict, strict=False)
 
     if p_arpabet > 0.0:
         cmudict.initialize(cmudict_path, keep_ambiguous=True)
