@@ -14,7 +14,7 @@ from models.denoiser import Denoiser
 from models.tacotron2.params import SAMPLING_RATE
 
 from buffer import buffer
-from scipy.io.wavfile import write
+import pydub
 
 DEFAULT_PACE = 1
 DEFAULT_PITCH_SHIFT = 0
