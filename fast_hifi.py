@@ -9,6 +9,7 @@ from torch.nn.utils.rnn import pad_sequence
 from models.fast.model import load_model as load_fast_model
 from models.fast.text import cmudict
 from models.fast.text.text_processing import TextProcessing
+from models.denoiser import Denoiser
 
 from models.tacotron2.params import SAMPLING_RATE
 
@@ -17,7 +18,7 @@ from scipy.io.wavfile import write
 
 DEFAULT_PACE = 1
 DEFAULT_PITCH_SHIFT = 0
-
+MAX_WAV_VALUE = 32768.0
 
 class FastHifiTTS:
     def __init__(self):
@@ -39,7 +40,8 @@ class FastHifiTTS:
         period: bool = False,
         start: int = 0,
         volume: int = 1,
-        energy_conditioning: bool = False
+        energy_conditioning: bool = False,
+        denoiser_strength = 150
     ):
         self.ready = False
 
@@ -54,6 +56,7 @@ class FastHifiTTS:
         self.pace = pace
         self.pitch_shift = pitch_shift
         self.volume = volume
+        self.denoiser_strength = denoiser_strength
 
         # TODO: allow for different types of pace and pitch transformations at inference time
         self.default_pitch_function = create_shift_pitch(self.pitch_shift)
@@ -73,6 +76,7 @@ class FastHifiTTS:
             p_arpabet=p_arpabet,
             handle_arpabet_ambiguous="first",
         )
+        self.denoiser = Denoiser(self.onnx, n_overlap=12, mode="normal")
         self.start = [self.tp.encode_text("A A")[1]] * start
         if warm_up:
             self.warm_up()
@@ -103,8 +107,16 @@ class FastHifiTTS:
             mel_output, *_ = self.fast.infer(sequence, **self.gen_kw)
 
             gen_output = self.onnx.run(None, {"input": to_numpy(mel_output)})
-            audio = np.squeeze(gen_output[0], 0)[0] * self.volume
-            write(out, SAMPLING_RATE, audio)
+            audio = np.squeeze(gen_output[0], 0)[0] * MAX_WAV_VALUE
+            audio_den = self.denoiser.forward(torch.FloatTensor(audio).view(1, -1), strength=self.denoiser_strength)[:, 0]
+            audio_den = audio_den.numpy().astype("int16").reshape(-1)
+            audio_den = pydub.AudioSegment(
+                audio_den.tobytes(),
+                frame_rate=22050,
+                sample_width=audio_den.dtype.itemsize,
+                channels=1
+            ) + self.volume
+            audio_den.export(out, format="wav")
         return audio.shape[0] / SAMPLING_RATE
 
     def get_speaker(self) -> str:

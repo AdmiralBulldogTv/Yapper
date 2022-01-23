@@ -7,3 +7,4 @@ Unidecode==1.0.22
 inflect==0.2.5
 tensorflow==1.15.2
 redis==4.1.0
+pydub==0.25.1
