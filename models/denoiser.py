@@ -22,7 +22,7 @@ class Denoiser(torch.nn.Module):
 
         with torch.no_grad():
             ort_inputs = {model.get_inputs()[0].name: mel_input.float().cpu().numpy()}
-            ort_outs = hifigan.run(None, ort_inputs)
+            ort_outs = model.run(None, ort_inputs)
             bias_audio = torch.FloatTensor(ort_outs[0]).view(1, -1)
             bias_spec, _ = self.stft.transform(bias_audio)
 
