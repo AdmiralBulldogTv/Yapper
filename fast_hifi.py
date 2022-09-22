@@ -15,10 +15,13 @@ from models.tacotron2.params import SAMPLING_RATE
 
 from buffer import buffer
 import pydub
+import librosa
 
 DEFAULT_PACE = 1
 DEFAULT_PITCH_SHIFT = 0
 MAX_WAV_VALUE = 32768.0
+TARGET_VOLUME = -25
+
 
 class FastHifiTTS:
     def __init__(self):
@@ -27,21 +30,21 @@ class FastHifiTTS:
         self.speaker = ""
 
     def update_model(
-        self,
-        fast_path: str,
-        onnx_path: str,
-        cmudict_path: str,
-        speaker: str,
-        warm_up: bool = False,
-        gpu: bool = False,
-        pace: float = DEFAULT_PACE,
-        pitch_shift: int = DEFAULT_PITCH_SHIFT,
-        p_arpabet: float = 1,
-        period: bool = False,
-        start: int = 0,
-        volume: int = 1,
-        energy_conditioning: bool = False,
-        denoiser_strength = 150
+            self,
+            fast_path: str,
+            onnx_path: str,
+            cmudict_path: str,
+            speaker: str,
+            warm_up: bool = False,
+            gpu: bool = False,
+            pace: float = DEFAULT_PACE,
+            pitch_shift: int = DEFAULT_PITCH_SHIFT,
+            p_arpabet: float = 1,
+            period: bool = False,
+            start: int = 0,
+            volume: int = 1,
+            energy_conditioning: bool = False,
+            denoiser_strength=150
     ):
         self.ready = False
 
@@ -108,14 +111,18 @@ class FastHifiTTS:
 
             gen_output = self.onnx.run(None, {"input": to_numpy(mel_output)})
             audio = np.squeeze(gen_output[0], 0)[0] * MAX_WAV_VALUE
-            audio_den = self.denoiser.forward(torch.FloatTensor(audio).view(1, -1), strength=self.denoiser_strength)[:, 0]
+            audio_den = self.denoiser.forward(torch.FloatTensor(audio).view(1, -1), strength=self.denoiser_strength)[:,
+                        0]
             audio_den = audio_den.numpy().astype("int16").reshape(-1)
             audio_den = pydub.AudioSegment(
                 audio_den.tobytes(),
                 frame_rate=22050,
                 sample_width=audio_den.dtype.itemsize,
                 channels=1
-            ) + self.volume
+            )
+            if self.get_speaker() == "demon":
+                audio_den = pitch_shift(audio_den, -2)
+            audio_den = match_target_amplitude(audio_den, TARGET_VOLUME)
             audio_den.export(out, format="wav")
         return audio.shape[0] / SAMPLING_RATE
 
@@ -135,3 +142,15 @@ def create_shift_pitch(shift):
         return pitch + shift / std
 
     return shift_pitch
+
+
+def match_target_amplitude(sound, target_dBFS):
+    change_in_dBFS = target_dBFS - sound.dBFS
+    return sound.apply_gain(change_in_dBFS)
+
+
+def pitch_shift(sound, n_steps):
+    y = np.frombuffer(sound._data, dtype=np.int16).astype(np.float32) / 2 ** 15
+    y = librosa.effects.pitch_shift(y, sound.frame_rate, n_steps=n_steps)
+    return pydub.AudioSegment(np.array(y * (1 << 15), dtype=np.int16).tobytes(), frame_rate=sound.frame_rate,
+                              sample_width=2, channels=1)
